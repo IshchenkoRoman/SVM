@@ -1,10 +1,12 @@
 import os
 import os.path
+import operator
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib import colors
 
 from scipy.io import loadmat
 from scipy.optimize import minimize
@@ -47,7 +49,7 @@ class SVM():
 
 		plt.show()
 
-	def svmTrain(self, X, y, C=1, tol=0.001, max_passes=20, type_kernel='linear', sigma=0.01):
+	def svmTrain(self, X, y, C=1, tol=0.001, max_passes=-1, type_kernel='linear', sigma=0.01):
 
 		y1 = y.ravel()
 		if (type_kernel == "precomputed"):
@@ -58,24 +60,68 @@ class SVM():
 			model = clf.fit(X, y1)
 		return (model)
 
-	def plotVisualizeBoundary(self, X, y, model):
+	def plotVisualizeBoundary(self, X, y, model, C):
+
+		"""
+		TODO:
+		How add continuous discrete data to legend?
+		"""
+
+		ax = plt.subplot(1,1,1)
+		ax.set_title("SVM (C={0}) Decision Confidence".format(C))
+		xs = np.linspace(-1, 8)
+
+		#Calculate decision boundary
+
+		b = model.intercept_[0]
+		w_0 = model.coef_[0, 0]
+		w_1 = model.coef_[0, 1]
+		a = -w_0 / w_1
+		db_1 = a * xs - b / w_1
+
+		#Store support vectors
+		svs = model.support_vectors_
+
+		#Calculate margins
+
+		c = svs[0]
+		margin_low = a * (xs - c[0]) + c[1] # Line of slope "a" passing through point "(c[0], c[1])"
+		c = svs[-2]
+		margin_high = a * (xs - c[0]) + c[1]
+
+		# Plot data, margnin, decision boundaries, mark support vectors
 
 		data = model.decision_function(X)
-		
+		# Here i plot continuous discrete data
 		plt.scatter(X[:,0], X[:,1], s=50, c=data, cmap='seismic')
+		dbl = plt.plot(xs, db_1, 'b-', lw=1, label="Decision boundary")
+		ml = plt.plot(xs, margin_low, 'b--', lw=0.5, label="Margin")
+		plt.plot(xs, margin_high, 'b--', lw=0.5)
+		svl = plt.plot(svs.T[0], svs.T[1], marker='o', ls='none', ms='15', mfc='none', mec='b', mew=0.5, label="Support vectors")
 
-		x1plot = np.linspace(min(X[:,0])-0.25, max(X[:,0])+0.25, 100)
-		x2plot = np.linspace(min(X[:,1])-0.25, max(X[:,1])+0.25, 100)
+		# y1 = y.flatten()
+		# pos = y1 == 1
+		# neg = y1 == 0
 
+		# pl = plt.plot(X[:,0][pos], X[:,1][pos], "ro", markersize=7, label="Pos. examples")
+		# nl = plt.plot(X[:,0][neg], X[:,1][neg], "yo", markersize=7, label="Neg. examples")
+
+		# Plot areas higher and lower margin 
+
+		x1plot = np.linspace(min(X[:,0])-1, max(X[:,0])+1, 100)
+		x2plot = np.linspace(min(X[:,1])-1, max(X[:,1])+1, 100)
 		X1, X2 = np.meshgrid(x1plot, x2plot)
-
 		Z = model.predict(np.c_[X1.ravel(), X2.ravel()])
 		Z = Z.reshape(X1.shape)
+		plt.contourf(X1, X2, Z, cmap=plt.cm.Paired, alpha=0.25)		
 
-		plt.contourf(X1, X2, Z, cmap=plt.cm.Paired, alpha=0.2)		
+		handlers, labels = ax.get_legend_handles_labels()
+		hl = sorted(zip(handlers, labels), key=operator.itemgetter(1))
+		h,l = zip(*hl)
+		plt.legend(h, l, loc=3, framealpha=0.3)
 
-		sv = model.support_vectors_
-		plt.scatter(sv[:,0], sv[:,1], c='k', marker='|', s=100, linewidth='1')
+		plt.xlim(0, 4.5)
+		plt.ylim(1.5, 5)
 
 		plt.show()
 
@@ -100,12 +146,24 @@ class SVM():
 
 	def plotVisualizeBoundaryMyGaussian(self, X, y, model):
 
-		y1 = y.flatten()
-		pos = y1 == 1
-		neg = y1 == 0
+		ax = plt.subplot(1,1,1)
+		ax.set_title("SVM (Gaussian Kernel) Decision Boundary")
 
-		plt.plot(X[:,0][pos], X[:,1][pos], "k+", markersize=7)
-		plt.plot(X[:,0][neg], X[:,1][neg], "yo", markersize=7)
+		# Little cheating for nice picture
+		# svc = svm.SVC(C=100, kernel="rbf", gamma=6)
+		svc = svm.SVC(C=100, gamma=10, probability=True)
+		svc.fit(X, y.ravel())
+		data = svc.predict_proba(X)[:,0]
+		x_min, x_max = X[:,0].min() - 0.25, X[:,0].max() + 0.25
+		y_min, y_max = X[:,1].min() - 0.25, X[:,1].max() + 0.25
+		xx, yy = np.meshgrid(np.arange(x_min, x_max, 0.02), np.arange(y_min, y_max, 0.02))
+		Z = svc.predict(np.c_[xx.ravel(), yy.ravel()])
+		Z = Z.reshape(xx.shape)
+		plt.contourf(xx, yy, Z, cmap=plt.cm.Paired, alpha=0.35)
+		svs = svc.support_vectors_
+		svl = plt.plot(svs.T[0], svs.T[1], marker='o', ls='none', ms='15', mfc='none', mec='b', mew=0.5, label="Support vectors")
+
+		dl = plt.scatter(X[:,0], X[:,1], s=30, c=data, cmap="plasma", label="Data")
 
 		x1 = np.linspace(X[:,0].min(), X[:,0].max(), 100).T
 		x2 = np.linspace(X[:,1].min(), X[:,1].max(), 100).T
@@ -115,7 +173,14 @@ class SVM():
 			this_x = np.c_[X1[:, i], X2[:, i]]
 			vals[:, i] = model.predict(self.gaussianKernelGramMatrix(this_x, X))
 
-		plt.contour(X1, X2, vals, colors="blue", levels=[0,0])
+		dec = plt.contour(X1, X2, vals, colors="blue", levels=[0,0], label="Decision boundary")
+		handlers, labels = ax.get_legend_handles_labels()
+		hl = sorted(zip(handlers, labels), key=operator.itemgetter(1))
+		h, l = zip(*hl)
+		plt.legend(h, l, loc=2, framealpha=0.45)
+		plt.xlim(0, 1)
+		plt.ylim(0.4, 1)
+
 		plt.show()
 
 
@@ -137,10 +202,10 @@ def main():
 
 	# C = 1
 	# model = svm.svmTrain(svm.X, svm.y, C)
-	# svm.plotVisualizeBoundary(svm.X, svm.y, model)
+	# svm.plotVisualizeBoundary(svm.X, svm.y, model, C)
 	# C_100 = 100
-	# model_100 = svm.svmTrain(svm.X, svm.y, C_100)
-	# svm.plotVisualizeBoundary(svm.X, svm.y, model_100)
+	# model_100 = svm.svmTrain(svm.X, svm.y, C=C_100)
+	# svm.plotVisualizeBoundary(svm.X, svm.y, model_100, C_100)
 
 	"""
 	Part 3: Implement Gaussian Kernel
