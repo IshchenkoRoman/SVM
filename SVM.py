@@ -18,7 +18,7 @@ from sklearn import svm
 
 class SVM():
 
-	def __init__(self, path_data1, path_data2):
+	def __init__(self, path_data1, path_data2, path_data3):
 		
 		try:
 			self._df1 = loadmat(path_data1)
@@ -32,11 +32,23 @@ class SVM():
 			print("File doent't exist")
 			raise
 
+		try:
+			self._df3 = loadmat(path_data3)
+		except IOError:
+			print("File doent't exist")
+			raise
+
 		self.X = self._df1['X']
 		self.y = self._df1['y']
 
 		self.X1 = self._df2['X']
 		self.y1 = self._df2['y']
+
+		self.X2 = self._df3['X']
+		self.y2 = self._df3['y']
+		self.X2val = self._df3["Xval"]
+		self.y2val = self._df3["yval"]
+
 
 	def plotData(self, X, y):
 
@@ -178,10 +190,38 @@ class SVM():
 		hl = sorted(zip(handlers, labels), key=operator.itemgetter(1))
 		h, l = zip(*hl)
 		plt.legend(h, l, loc=2, framealpha=0.45)
-		plt.xlim(0, 1)
-		plt.ylim(0.4, 1)
+		# plt.xlim(0, 1)
+		# plt.ylim(0.4, 1)
+		plt.xlim(-0.6, 0.3)
+		plt.ylim(-0.8, 0.6)
 
 		plt.show()
+
+	def dataset3Params(self, X, y, Xval, yval):
+
+		arr_C = np.array([0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100])
+		arr_sigma = np.array([0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100])
+
+		final_C = None
+		final_sigma = None
+		b_score = None
+
+		for C in arr_C:
+			for Sigma in arr_sigma:
+
+				svc = svm.SVC(C=C, gamma=Sigma)
+				svc.fit(X, y)
+				score = svc.score(Xval, yval)
+
+			if b_score == None or score > b_score:
+				b_score = score
+				final_C = C
+				final_sigma = Sigma
+
+		return (final_C, final_sigma)
+
+
+
 
 
 def main():
@@ -192,36 +232,37 @@ def main():
 	curr_path = os.getcwd()
 	path_data1 = curr_path + "/data/ex6data1.mat"
 	path_data2 = curr_path + "/data/ex6data2.mat"
+	path_data3 = curr_path + "/data/ex6data3.mat"
 
-	svm = SVM(path_data1, path_data2)
-	# svm.plotData(svm.X, svm.y)
+	svm = SVM(path_data1, path_data2, path_data3)
+	svm.plotData(svm.X, svm.y)
 
 	"""
 	Part two- Training Linear SVM
 	"""
 
-	# C = 1
-	# model = svm.svmTrain(svm.X, svm.y, C)
-	# svm.plotVisualizeBoundary(svm.X, svm.y, model, C)
-	# C_100 = 100
-	# model_100 = svm.svmTrain(svm.X, svm.y, C=C_100)
-	# svm.plotVisualizeBoundary(svm.X, svm.y, model_100, C_100)
+	C = 1
+	model = svm.svmTrain(svm.X, svm.y, C)
+	svm.plotVisualizeBoundary(svm.X, svm.y, model, C)
+	C_100 = 100
+	model_100 = svm.svmTrain(svm.X, svm.y, C=C_100)
+	svm.plotVisualizeBoundary(svm.X, svm.y, model_100, C_100)
 
 	"""
 	Part 3: Implement Gaussian Kernel
 	"""
 
-	# x1 = np.array([1,2,1])
-	# x2 = np.array([0,4,-1])
-	# sigma = 2
-	# sim = svm.gaussianKernel(x1, x2, sigma)
-	# print(sim)
+	x1 = np.array([1,2,1])
+	x2 = np.array([0,4,-1])
+	sigma = 2
+	sim = svm.gaussianKernel(x1, x2, sigma)
+	print(sim)
 
 	"""
 	Part 4: load (done above) and visualise data
 	"""
 
-	# svm.plotData(svm.X1, svm.y1)
+	svm.plotData(svm.X1, svm.y1)
 
 	"""
 	Part 5: Training SVM with RBF Kernel (Dataset 2)
@@ -231,6 +272,18 @@ def main():
 	sigma = 0.1
 	model = svm.svmTrain(svm.X1, svm.y1, C, tol=0.001, max_passes=-1, type_kernel="precomputed", sigma=sigma)
 	svm.plotVisualizeBoundaryMyGaussian(svm.X1, svm.y1, model)
+
+	"""
+	Part 6: load and visualise data
+	"""
+	svm.plotData(svm.X2, svm.y2)
+
+	"""
+	Part 7: Training SVM with RBF Kernel
+	"""
+	C, sigma = svm.dataset3Params(svm.X2, svm.y2, svm.X2val, svm.y2val)
+	model = svm.svmTrain(svm.X2, svm.y2, C=C, type_kernel="precomputed", sigma=sigma)
+	svm.plotVisualizeBoundaryMyGaussian(svm.X2, svm.y2, model)
 
 
 if __name__ == "__main__":
